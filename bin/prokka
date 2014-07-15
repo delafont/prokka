@@ -1074,25 +1074,26 @@ msg("Assigned $num_lt locus_tags to CDS and RNA features.");
 
 if ($ips) {
     msg("Running InterProScan");
+    my $tool = "InterProScan:".$tools{'interproscan.sh'}->{VERSION};
 
     # Write a .faa file with all proteins, removing the stop codon asterisks
-    my $count = 0;
     my $faa_name = "$outdir/${prefix}_proteins.faa";
     open my $faa, '>', $faa_name;
-    for my $sid (sort keys %seq) {
-      for my $f (@{ $seq{$sid}{FEATURE} }) {
-        ++$count;
+    for my $sid (sort keys %seq) {  # chromosomes
+      for my $f (@{ $seq{$sid}{FEATURE} }) {   # feats
+        say($f->seq_id); # chromosome
         #next unless $f->primary_tag eq 'CDS';
         #next if $f->has_tag('product');
         (my $nostar_seq = $f->seq->translate->seq) =~ s/\*// ;
-        print $faa ">$count\n", $nostar_seq, "\n";
+        print $faa ">$sid\n", $nostar_seq, "\n";
       }
     }
     close $faa;
 
     # Run InterProScan - cannot output to stdout...
-    my $ips_out = "${faa_name}_ips.gff3";
-    my $cmd = "interproscan.sh --input $faa_name --seqtype p --formats GFF3 --iprlookup --outfile $ips_out";
+    my $ips_outformat = "TSV";
+    my $ips_out = "${faa_name}_ips." . lc ${ips_outformat};
+    my $cmd = "interproscan.sh --input $faa_name --seqtype p --formats $ips_outformat --iprlookup --outfile $ips_out";
                #--tempdir /scratch/cluster/daily/...
     if ($ips_appl) { $cmd = $cmd . " --appl $ips_appl"; }
     if ($ips_goterms) { $cmd = $cmd . " --goterms"; }
@@ -1101,35 +1102,38 @@ if ($ips) {
     # Put back the GFF content into %seq to print it again later in compliant format (?)
     msg("Running: $cmd");
     system($cmd);
-    open IPS_GFF, $ips_out or die $!;
+    open DOMAINS, $ips_out or die $!;
     my $sid;
-    while (<IPS_GFF>) {
+    while (<DOMAINS>) {
 #      if (m/seqhdr="([^\s\"]+)"/) {
-        $sid = $_;
-        msg(">>> $sid");
+        #$sid = $_;
+        #msg(">>> $sid");
 #        next;
 #      }
+
+       my @x = split m/\s+/;
+       say(@x>3, $x[0])
+
 #      elsif (m/^>\d+_(\d+)_(\d+)_([+-])$/) {
-#        my $tool = "Prodigal:".$tools{prodigal}->{VERSION}; # FIXME: why inner loop?
-#        my $cds = Bio::SeqFeature::Generic->new(
-#          -primary    => 'CDS',
+#        my $domains = Bio::SeqFeature::Generic->new(
+#          -primary    => 'Domain',
 #          -seq_id     => $sid,
 #          -source     => $tool,
-#          -start      => $1,
-#          -end        => $2,
+#          -start      => $5,
+#          -end        => $6,
 #          -strand     => ($3 eq '+' ? +1 : -1),
 #          -score      => undef,
 #          -frame      => 0,
 #          -tag        => {
-#        'inference' => "ab initio prediction:$tool",
+#        'inference' => "protein domains prediction: $tool",
 #          }
 #        );
 #      }
     }
-    #delfile($faa_name);
+    delfile($faa_name);
     #delfile($ips_out);
 } else {
-  msg("Skipping InterProScan, enable with --ips_appl if desired.");
+  msg("Skipping InterProScan, enable with --ips if desired.");
 }
 
 
