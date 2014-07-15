@@ -159,7 +159,8 @@ my %tools = (
     NEEDED  => 1,
   },
   'interproscan.sh' => {
-    GETVER  => "interproscan.sh - | head -1",  # 08/07/2014 10:40:47:348 Welcome to InterProScan-5.4-47.0
+    GETVER  => "echo InterProScan-5.4",  # faster for testing
+    #GETVER  => "interproscan.sh - | head -1",  # 08/07/2014 10:40:47:348 Welcome to InterProScan-5.4-47.0
     REGEXP  => qr/InterProScan-($BIDEC)/,
     MINVER  => "5.4",
     NEEDED  => 0,
@@ -345,8 +346,8 @@ if ($ips_appl) {
        "\"superfamily\"", "\"prints\"", "\"gene3d\"", "\"pfirsf\"", "\"fama\"", "\"hamap\"", "\"coils\"");
     my @ips_appl = split(/,/, $ips_appl);
     foreach (@ips_appl) {
-      if (!($_ ~~ @available_appl)){
-        err("\$ips_appl can only be one of: @available_appl.\n");
+      if (!('"'.lc $_.'"' ~~ @available_appl)){
+        err("\$ips_appl values can only be among: @available_appl.\n");
       }
     }
 }
@@ -388,8 +389,6 @@ if ($gram and ! $tools{'signalp'}->{HAVE}) {
   err("You need to install 'signalp' to use the --gram option.");
 }
 if (($ips_goterms or $ips_pathways or $ips_appl or $ips) and ! $tools{'interproscan.sh'}->{HAVE}) {
-  say keys $tools{'interproscan.sh'};
-  say $tools{'interproscan.sh'}->{HAVE};
   err("You need to install 'InterProScan' to use the --ips_goterms, --ips_pathways, --ips or --ips_appl options.");
 }
 
@@ -908,10 +907,10 @@ else {
     my $count=0;
     for my $sid (sort keys %seq) {
       for my $f (@{ $seq{$sid}{FEATURE} }) {
-    next unless $f->primary_tag eq 'CDS';
-    next if $f->has_tag('product');
-    $cds{++$count} = $f;
-    print $faa ">$count\n",$f->seq->translate->seq,"\n";
+        next unless $f->primary_tag eq 'CDS';
+        next if $f->has_tag('product');
+        $cds{++$count} = $f;
+        print $faa ">$count\n",$f->seq->translate->seq,"\n";
       }
     }
     close $faa;
@@ -1073,26 +1072,41 @@ msg("Assigned $num_lt locus_tags to CDS and RNA features.");
 # . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
 # InterProScan
 
-
-
 if ($ips) {
     msg("Running InterProScan");
-    my $cmd = "interproscan.sh --formats GFF3
-                               --outfile ips.gff
-                               --iprlookup
-                               --tempdir /scratch/cluster/daily/...
-                               --seqtype p";
-    if ($ips_appl) {}
-    if ($ips_goterms) {}
-    if ($ips_pathways) {}
 
+    # Write a .faa file with all proteins, removing the stop codon asterisks
+    my $count = 0;
+    my $faa_name = "$outdir/${prefix}_proteins.faa";
+    open my $faa, '>', $faa_name;
+    for my $sid (sort keys %seq) {
+      for my $f (@{ $seq{$sid}{FEATURE} }) {
+        ++$count;
+        #next unless $f->primary_tag eq 'CDS';
+        #next if $f->has_tag('product');
+        (my $nostar_seq = $f->seq->translate->seq) =~ s/\*// ;
+        print $faa ">$count\n", $nostar_seq, "\n";
+      }
+    }
+    close $faa;
+
+    # Run InterProScan - cannot output to stdout...
+    my $ips_out = "${faa_name}_ips.gff3";
+    my $cmd = "interproscan.sh --input $faa_name --seqtype p --formats GFF3 --iprlookup --outfile $ips_out";
+               #--tempdir /scratch/cluster/daily/...
+    if ($ips_appl) { $cmd = $cmd . " --appl $ips_appl"; }
+    if ($ips_goterms) { $cmd = $cmd . " --goterms"; }
+    if ($ips_pathways) { $cmd = $cmd . " --pathways"; }
+
+    # Put back the GFF content into %seq to print it again later in compliant format (?)
     msg("Running: $cmd");
-#    open CDS, "$cmd |";
-#    my $sid;
-#    while (<CDS>) {
+    system($cmd);
+    open IPS_GFF, $ips_out or die $!;
+    my $sid;
+    while (<IPS_GFF>) {
 #      if (m/seqhdr="([^\s\"]+)"/) {
-#        $sid = $1;
-#    #    msg("CDS $sid");
+        $sid = $_;
+        msg(">>> $sid");
 #        next;
 #      }
 #      elsif (m/^>\d+_(\d+)_(\d+)_([+-])$/) {
@@ -1111,7 +1125,9 @@ if ($ips) {
 #          }
 #        );
 #      }
-#    }
+    }
+    #delfile($faa_name);
+    #delfile($ips_out);
 } else {
   msg("Skipping InterProScan, enable with --ips_appl if desired.");
 }
