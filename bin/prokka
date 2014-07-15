@@ -33,6 +33,7 @@ use Bio::Seq;
 use Bio::SeqFeature::Generic;
 use Bio::Tools::GFF;
 use FindBin;
+use feature qw(say);
 
 # . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
 # global variables
@@ -157,10 +158,10 @@ my %tools = (
     MINVER  => "21.9",
     NEEDED  => 1,
   },
-  'interproscan' => {
+  'interproscan.sh' => {
     GETVER  => "interproscan.sh - | head -1",  # 08/07/2014 10:40:47:348 Welcome to InterProScan-5.4-47.0
-    REGEXP  => qr/InterProScan-($BIDEC)-($BIDEC)/,
-    MINVER  => "5.4-47.0",
+    REGEXP  => qr/InterProScan-($BIDEC)/,
+    MINVER  => "5.4",
     NEEDED  => 0,
   },
   # now just the standard unix tools we need
@@ -216,7 +217,7 @@ my(@Options, $quiet, $kingdom, $fast, $force, $outdir, $prefix, $cpus, $addgenes
              $rfam, $norrna, $notrna,
              $metagenome, $compliant, $listdb, $citation,
              # InterProScan bindings
-             $goterms, $pathways, $ips_appl);
+             $ips, $ips_appl, $ips_goterms, $ips_pathways);
 setOptions();
 
 # . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
@@ -338,15 +339,21 @@ msg("Setting HMMER_NCPU=1");
 $ENV{HMMER_NCPU} = 1;
 
 # InterProScan options
-my @available_appl = ("tigrfam", "prodom", "panther", "smart", "prosite", "superfamily",
-               "prints", "gene3d", "pfirsf", "fama", "hamap", "coils");
-my @ips_appl = split(/,/, $ips_appl);
-foreach (@ips_appl) {
-  if (!($_ ~~ @available_appl)){
-    print "\$ips_appl can be one of @available_appl.\n" ;
-  }
+# - each appl name given to --ips_appl is in the list
+if ($ips_appl) {
+    my @available_appl = ("\"tigrfam\"", "\"prodom\"", "\"panther\"", "\"smart\"", "\"prosite\"",
+       "\"superfamily\"", "\"prints\"", "\"gene3d\"", "\"pfirsf\"", "\"fama\"", "\"hamap\"", "\"coils\"");
+    my @ips_appl = split(/,/, $ips_appl);
+    foreach (@ips_appl) {
+      if (!($_ ~~ @available_appl)){
+        err("\$ips_appl can only be one of: @available_appl.\n");
+      }
+    }
 }
+# - need --ips to use --ips_appl, --ips_goterms, --ips_pathways ?
+if (($ips_appl or $ips_goterms or $ips_pathways) and ! $ips) {
 
+}
 
 # . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
 # set up log file
@@ -380,8 +387,10 @@ if ($rfam and ! $tools{'cmscan'}->{HAVE}) {
 if ($gram and ! $tools{'signalp'}->{HAVE}) {
   err("You need to install 'signalp' to use the --gram option.");
 }
-if (($goterms or $pathways or $ips_appl) and !$tools{'interproscan'}->{HAVE}) {
-  err("You need to install 'InterProScan' to use the --goterms, --pathways or --ips_appl options.");
+if (($ips_goterms or $ips_pathways or $ips_appl or $ips) and ! $tools{'interproscan.sh'}->{HAVE}) {
+  say keys $tools{'interproscan.sh'};
+  say $tools{'interproscan.sh'}->{HAVE};
+  err("You need to install 'InterProScan' to use the --ips_goterms, --ips_pathways, --ips or --ips_appl options.");
 }
 
 
@@ -683,7 +692,7 @@ while (<CDS>) {
       -score      => undef,
       -frame      => 0,
       -tag        => {
-	'inference' => "ab initio prediction:$tool",
+    'inference' => "ab initio prediction:$tool",
       }
     );
     my $overlap;
@@ -691,7 +700,7 @@ while (<CDS>) {
       # same contig, overlapping (could check same strand too? not sure)
       if ($rna->seq_id eq $sid and $cds->overlaps($rna)) {
         $overlap = $rna;
-	last;
+    last;
       }
     }
     # mitochondria are highly packed, so don't exclude as CDS/tRNA often overlap.
@@ -771,8 +780,8 @@ if ($tools{signalp}->{HAVE}) {
             -strand     => $parent->strand,
             -frame      => 0,    # PHASE: compulsory for peptides, can't be '.'
             -tag        => {
-    #	  'ID' => $ID,
-    #	  'Parent' => $x[0],  # don't have proper IDs yet....
+    #      'ID' => $ID,
+    #      'Parent' => $x[0],  # don't have proper IDs yet....
               'product' => "putative signal peptide",
               'inference' => "ab initio prediction:$tool",
               'note' => "predicted cleavage at residue $x[3] with probability $prob",
@@ -797,8 +806,8 @@ if ($tools{signalp}->{HAVE}) {
             -strand     => $parent->strand,
             -frame      => 0,    # PHASE: compulsory for peptides, can't be '.'
             -tag        => {
-    #	  'ID' => $ID,
-    #	  'Parent' => $x[0],  # don't have proper IDs yet....
+    #      'ID' => $ID,
+    #      'Parent' => $x[0],  # don't have proper IDs yet....
               'product' => "putative signal peptide",
               'inference' => "ab initio prediction:$tool",
               'note' => "predicted cleavage at residue $x[2]",
@@ -899,10 +908,10 @@ else {
     my $count=0;
     for my $sid (sort keys %seq) {
       for my $f (@{ $seq{$sid}{FEATURE} }) {
-	next unless $f->primary_tag eq 'CDS';
-	next if $f->has_tag('product');
-	$cds{++$count} = $f;
-	print $faa ">$count\n",$f->seq->translate->seq,"\n";
+    next unless $f->primary_tag eq 'CDS';
+    next if $f->has_tag('product');
+    $cds{++$count} = $f;
+    print $faa ">$count\n",$f->seq->translate->seq,"\n";
       }
     }
     close $faa;
@@ -933,21 +942,21 @@ else {
       my $hit = $res->next_hit or next;
       my($pid,$prod,$gene,$EC) = ($res->query_name, $hit->description, '', '');
       if ($prod =~ m/~~~/) {
-	($EC,$gene,$prod) = split m/~~~/, $prod;
-	$EC =~ s/n\d+/-/g; # collapse transitionary EC numbers
+    ($EC,$gene,$prod) = split m/~~~/, $prod;
+    $EC =~ s/n\d+/-/g; # collapse transitionary EC numbers
       }
       my $cleanprod = cleanup_product($prod);
       if ($cleanprod ne $prod) {
         msg("Modify product: $prod => $cleanprod");
         # we remove any special /gene or /EC if the /product is 'hypothetical protein' !
-	if ($cleanprod eq $HYPO) {
-   	  $cds{$pid}->add_tag_value('note', $prod);
+    if ($cleanprod eq $HYPO) {
+      $cds{$pid}->add_tag_value('note', $prod);
           # I think I still need to do this to cope with dodgy anno sources
-  	  $cds{$pid}->remove_tag('gene') if $cds{$pid}->has_tag('gene');
-	  $cds{$pid}->remove_tag('EC_number') if $cds{$pid}->has_tag('EC_number');
-	  $EC = $gene = undef;
-	}
-	$num_cleaned++;
+      $cds{$pid}->remove_tag('gene') if $cds{$pid}->has_tag('gene');
+      $cds{$pid}->remove_tag('EC_number') if $cds{$pid}->has_tag('EC_number');
+      $EC = $gene = undef;
+    }
+    $num_cleaned++;
       }
       $cds{$pid}->add_tag_value('product', $cleanprod);
       $cds{$pid}->add_tag_value('EC_number', $EC) if $EC;
@@ -1051,13 +1060,63 @@ for my $sid (sort keys %seq) {
         -tag        => { 'locus_tag '=> $ID },
       );
       if (my $gENE = TAG($f, 'gene')) {
-   	$g->add_tag_value('gene', $gENE);
+       $g->add_tag_value('gene', $gENE);
       }
       push @{ $seq{$sid}{FEATURE} }, $g;
     }
   }
 }
 msg("Assigned $num_lt locus_tags to CDS and RNA features.");
+
+
+
+# . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+# InterProScan
+
+
+
+if ($ips) {
+    msg("Running InterProScan");
+    my $cmd = "interproscan.sh --formats GFF3
+                               --outfile ips.gff
+                               --iprlookup
+                               --tempdir /scratch/cluster/daily/...
+                               --seqtype p";
+    if ($ips_appl) {}
+    if ($ips_goterms) {}
+    if ($ips_pathways) {}
+
+    msg("Running: $cmd");
+#    open CDS, "$cmd |";
+#    my $sid;
+#    while (<CDS>) {
+#      if (m/seqhdr="([^\s\"]+)"/) {
+#        $sid = $1;
+#    #    msg("CDS $sid");
+#        next;
+#      }
+#      elsif (m/^>\d+_(\d+)_(\d+)_([+-])$/) {
+#        my $tool = "Prodigal:".$tools{prodigal}->{VERSION}; # FIXME: why inner loop?
+#        my $cds = Bio::SeqFeature::Generic->new(
+#          -primary    => 'CDS',
+#          -seq_id     => $sid,
+#          -source     => $tool,
+#          -start      => $1,
+#          -end        => $2,
+#          -strand     => ($3 eq '+' ? +1 : -1),
+#          -score      => undef,
+#          -frame      => 0,
+#          -tag        => {
+#        'inference' => "ab initio prediction:$tool",
+#          }
+#        );
+#      }
+#    }
+} else {
+  msg("Skipping InterProScan, enable with --ips_appl if desired.");
+}
+
+
 
 # . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
 # Write it all out!
@@ -1440,6 +1499,11 @@ sub setOptions {
     {OPT=>"rfam",  VAR=>\$rfam, DEFAULT=>0, DESC=>"Enable searching for ncRNAs with Infernal+Rfam (SLOW!)"},
     {OPT=>"norrna!",  VAR=>\$norrna, DEFAULT=>0, DESC=>"Don't run rRNA search"},
     {OPT=>"notrna!",  VAR=>\$notrna, DEFAULT=>0, DESC=>"Don't run tRNA search"},
+    # InterProScan options
+    {OPT=>"ips!",  VAR=>\$ips, DEFAULT=>0, DESC=>"Run InterProScan to annotate protein domains."},
+    {OPT=>"ips_appl=s",  VAR=>\$ips_appl, DEFAULT=>0, DESC=>"Comma-separated list of InterProScan analyses to run (IPS --appl option)."},
+    {OPT=>"ips_goterms!",  VAR=>\$ips_goterms, DEFAULT=>0, DESC=>"Search for GO terms (IPS --goterms option)."},
+    {OPT=>"ips_pathways!",  VAR=>\$ips_pathways, DEFAULT=>0, DESC=>"Pathways analysis (IPS --pathways options)."},
   );
 
   (!@ARGV) && (usage());
