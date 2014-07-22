@@ -218,7 +218,7 @@ my(@Options, $quiet, $kingdom, $fast, $force, $outdir, $prefix, $cpus, $addgenes
              $rfam, $norrna, $notrna,
              $metagenome, $compliant, $listdb, $citation,
              # InterProScan bindings
-             $ips, $ips_appl, $ips_goterms, $ips_pathways);
+             $ips, $ips_appl, $ips_goterms, $ips_pathways, $ips_tempdir);
 setOptions();
 
 # . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
@@ -343,7 +343,8 @@ $ENV{HMMER_NCPU} = 1;
 # - each appl name given to --ips_appl is in the list
 if ($ips_appl) {
     my @available_appl = ("\"tigrfam\"", "\"prodom\"", "\"panther\"", "\"smart\"", "\"prosite\"",
-       "\"superfamily\"", "\"prints\"", "\"gene3d\"", "\"pfirsf\"", "\"fama\"", "\"hamap\"", "\"coils\"");
+       "\"superfamily\"", "\"prints\"", "\"gene3d\"", "\"pfirsf\"", "\"pfama\"", "\"hamap\"",
+       "\"coils\"", "\"signalp\"");
     my @ips_appl = split(/,/, $ips_appl);
     foreach (@ips_appl) {
       if (!('"'.lc $_.'"' ~~ @available_appl)){
@@ -351,9 +352,11 @@ if ($ips_appl) {
       }
     }
 }
-# - need --ips to use --ips_appl, --ips_goterms, --ips_pathways ?
 if (($ips_appl or $ips_goterms or $ips_pathways) and ! $ips) {
-
+    $ips = 1;
+}
+if (! -d $ips_tempdir) {
+    err("Folder $ips_tempdir does not exist. Create it first.\n");
 }
 
 # . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
@@ -361,7 +364,7 @@ if (($ips_appl or $ips_goterms or $ips_pathways) and ! $ips) {
 
 my $logfile = "$outdir/$prefix.log";
 msg("Writing log to: $logfile");
-open LOG, '>', $logfile or err("Can't open logfile");
+open LOG, '>', $logfile or err("Can't open logfile.");
 
 msg("Command: @CMDLINE");
 
@@ -1097,8 +1100,8 @@ if ($ips) {
     my $ips_out = "${faa_name}_ips." . lc ${ips_outformat};
     if (1) {
         my $cmd = "interproscan.sh --input $faa_name --seqtype p --formats $ips_outformat --iprlookup --outfile $ips_out";
-                   #--tempdir /scratch/cluster/daily/...
         if ($ips_appl) { $cmd = $cmd . " --appl $ips_appl"; }
+        if ($ips_tempdir) { $cmd = $cmd . "--tempdir $ips_tempdir"; }
         if ($ips_goterms) { $cmd = $cmd . " --goterms"; }
         if ($ips_pathways) { $cmd = $cmd . " --pathways"; }
         msg("Running: $cmd");
@@ -1539,6 +1542,7 @@ sub setOptions {
     # InterProScan options
     {OPT=>"ips!",  VAR=>\$ips, DEFAULT=>0, DESC=>"Run InterProScan to annotate protein domains."},
     {OPT=>"ips_appl=s",  VAR=>\$ips_appl, DEFAULT=>0, DESC=>"Comma-separated list of InterProScan analyses to run (IPS --appl option)."},
+    {OPT=>"ips_tempdir=s",  VAR=>\$ips_tempdir, DEFAULT=>0, DESC=>"Temporary folder for IPS intermediate files."},
     {OPT=>"ips_goterms!",  VAR=>\$ips_goterms, DEFAULT=>0, DESC=>"Search for GO terms (IPS --goterms option)."},
     {OPT=>"ips_pathways!",  VAR=>\$ips_pathways, DEFAULT=>0, DESC=>"Pathways analysis (IPS --pathways options)."},
   );
