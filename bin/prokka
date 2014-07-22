@@ -1095,13 +1095,15 @@ if ($ips) {
     # Run InterProScan - cannot output to stdout...
     my $ips_outformat = "GFF3";
     my $ips_out = "${faa_name}_ips." . lc ${ips_outformat};
-    #my $cmd = "interproscan.sh --input $faa_name --seqtype p --formats $ips_outformat --iprlookup --outfile $ips_out";
-    #           #--tempdir /scratch/cluster/daily/...
-    #if ($ips_appl) { $cmd = $cmd . " --appl $ips_appl"; }
-    #if ($ips_goterms) { $cmd = $cmd . " --goterms"; }
-    #if ($ips_pathways) { $cmd = $cmd . " --pathways"; }
-    #msg("Running: $cmd");
-    #system($cmd);
+    if (1) {
+        my $cmd = "interproscan.sh --input $faa_name --seqtype p --formats $ips_outformat --iprlookup --outfile $ips_out";
+                   #--tempdir /scratch/cluster/daily/...
+        if ($ips_appl) { $cmd = $cmd . " --appl $ips_appl"; }
+        if ($ips_goterms) { $cmd = $cmd . " --goterms"; }
+        if ($ips_pathways) { $cmd = $cmd . " --pathways"; }
+        msg("Running: $cmd");
+        system($cmd);
+    }
 
     # Read the GFF and build a map {CDS => [domains]}
     my $gffio = Bio::Tools::GFF->new(-file => $ips_out, -gff_version => 3);
@@ -1121,7 +1123,7 @@ if ($ips) {
     $gffio->close();
 
     # Edit CDS in %seq with the new domains info
-    for my $sid (sort keys %seq) {
+    for my $sid (keys %seq) {
         for my $f (@{ $seq{$sid}{FEATURE} }) {
             my $fid = TAG($f,'locus_tag');
             next unless exists $gff_map{$fid};
@@ -1246,7 +1248,8 @@ msg("Generating Genbank and Sequin files");
 
 # Original PROKKA command
 #runcmd("tbl2asn -V b -a r10k -l paired-ends -M n -N 1 -y 'Annotated using $EXE $VERSION from $URL' -Z $outdir/$prefix.err -i $outdir/$prefix.fsa 2> /dev/null");
-# Modified one
+
+# Modified one with the "-f <.tbl>" option
 runcmd("tbl2asn -V b -a r10k -l paired-ends -M n -N 1 -y 'Annotated using $EXE $VERSION from $URL' -Z $outdir/$prefix.err -i $outdir/$prefix.fsa -f $outdir/$prefix.tbl 2> /dev/null");
 
 delfile("$outdir/errorsummary.val");
