@@ -676,7 +676,7 @@ my $sid;
 while (<CDS>) {
   if (m/seqhdr="([^\s\"]+)"/) {
     $sid = $1;
-#    msg("CDS $sid");
+    #msg("CDS $sid");
     next;
   }
   elsif (m/^>\d+_(\d+)_(\d+)_([+-])$/) {
@@ -1076,62 +1076,66 @@ if ($ips) {
     msg("Running InterProScan");
     my $tool = "InterProScan:".$tools{'interproscan.sh'}->{VERSION};
 
-    # Write a .faa file with all proteins, removing the stop codon asterisks
+    # Write a .faa file with all proteins
     my $faa_name = "$outdir/${prefix}_proteins.faa";
     open my $faa, '>', $faa_name;
-    for my $sid (sort keys %seq) {  # chromosomes
-      for my $f (@{ $seq{$sid}{FEATURE} }) {   # feats
-        say($f->seq_id); # chromosome
-        #next unless $f->primary_tag eq 'CDS';
-        #next if $f->has_tag('product');
-        (my $nostar_seq = $f->seq->translate->seq) =~ s/\*// ;
-        print $faa ">$sid\n", $nostar_seq, "\n";
-      }
+    for my $sid (sort keys %seq) {
+        for my $f (@{ $seq{$sid}{FEATURE} }) {
+            # Only protein-coding CDS
+            next unless $f->primary_tag eq 'CDS';
+            next unless $f->has_tag('product');
+            # Remove the stop codon star
+            (my $nostar_seq = $f->seq->translate->seq) =~ s/\*// ;
+            my $fid = TAG($f,'locus_tag') . '::' . $f->seq_id;
+            print $faa ">$fid\n", $nostar_seq, "\n";
+        }
     }
     close $faa;
 
     # Run InterProScan - cannot output to stdout...
-    my $ips_outformat = "TSV";
+    my $ips_outformat = "GFF3";
     my $ips_out = "${faa_name}_ips." . lc ${ips_outformat};
-    my $cmd = "interproscan.sh --input $faa_name --seqtype p --formats $ips_outformat --iprlookup --outfile $ips_out";
-               #--tempdir /scratch/cluster/daily/...
-    if ($ips_appl) { $cmd = $cmd . " --appl $ips_appl"; }
-    if ($ips_goterms) { $cmd = $cmd . " --goterms"; }
-    if ($ips_pathways) { $cmd = $cmd . " --pathways"; }
+    #my $cmd = "interproscan.sh --input $faa_name --seqtype p --formats $ips_outformat --iprlookup --outfile $ips_out";
+    #           #--tempdir /scratch/cluster/daily/...
+    #if ($ips_appl) { $cmd = $cmd . " --appl $ips_appl"; }
+    #if ($ips_goterms) { $cmd = $cmd . " --goterms"; }
+    #if ($ips_pathways) { $cmd = $cmd . " --pathways"; }
+    #msg("Running: $cmd");
+    #system($cmd);
 
-    # Put back the GFF content into %seq to print it again later in compliant format (?)
-    msg("Running: $cmd");
-    system($cmd);
-    open DOMAINS, $ips_out or die $!;
-    my $sid;
-    while (<DOMAINS>) {
-#      if (m/seqhdr="([^\s\"]+)"/) {
-        #$sid = $_;
-        #msg(">>> $sid");
-#        next;
-#      }
+    # Read the GFF and build a map {CDS => [domains]}
+    my $gffio = Bio::Tools::GFF->new(-file => $ips_out, -gff_version => 3);
+    #$gffio->ignore_sequence(1);  # ignore sequence data
+    my $feature;
+    my %gff_map;
+    while ($feature = $gffio->next_feature()) {
+        my $fid = $feature->seq_id;
+        ($fid,my $sid) = split /::/, $fid;
+        $feature->seq_id($sid);
+        if (exists $gff_map{$fid}) {
+            push(@{$gff_map{$fid}}, $feature);
+        } else {
+            $gff_map{$fid} = [];
+        }
+    }
+    $gffio->close();
 
-       my @x = split m/\s+/;
-       say(@x>3, $x[0])
-
-#      elsif (m/^>\d+_(\d+)_(\d+)_([+-])$/) {
-#        my $domains = Bio::SeqFeature::Generic->new(
-#          -primary    => 'Domain',
-#          -seq_id     => $sid,
-#          -source     => $tool,
-#          -start      => $5,
-#          -end        => $6,
-#          -strand     => ($3 eq '+' ? +1 : -1),
-#          -score      => undef,
-#          -frame      => 0,
-#          -tag        => {
-#        'inference' => "protein domains prediction: $tool",
-#          }
-#        );
-#      }
+    # Edit CDS in %seq with the new domains info
+    for my $sid (sort keys %seq) {
+        for my $f (@{ $seq{$sid}{FEATURE} }) {
+            my $fid = TAG($f,'locus_tag');
+            next unless exists $gff_map{$fid};
+            foreach (@{$gff_map{$fid}}){
+                my $source = "InterPro";
+                    # Not "$_->source_tag;": it only works with some specific know names:
+                    # http://www.ncbi.nlm.nih.gov/genbank/collab/db_xref
+                my $name = TAG($_,'Name');
+                $f->add_tag_value('db_xref', "$source:$name");
+            }
+        }
     }
     delfile($faa_name);
-    #delfile($ips_out);
+    delfile($ips_out);
 } else {
   msg("Skipping InterProScan, enable with --ips if desired.");
 }
@@ -1164,12 +1168,15 @@ for my $sid (sort keys %seq) {
   $ctg->desc(undef);
   print $tbl_fh ">Feature $sid\n";
   for my $f ( sort { $a->start <=> $b->start } @{ $seq{$sid}{FEATURE} }) {
+    # If the protein is unknown, put a default value
     if ($f->primary_tag eq 'CDS' and not $f->has_tag('product')) {
       $f->add_tag_value('product', $HYPO);
     }
 
+    # Write ".gff" output
     print $gff_fh $f->gff_string($gff_factory),"\n";
 
+    # Write ".tbl" output
     my ($L,$R) = ($f->strand >= 0) ? ($f->start,$f->end) : ($f->end,$f->start);
     print {$tbl_fh} "$L\t$R\t",$f->primary_tag,"\n";
     for my $tag ($f->get_all_tags) {
@@ -1179,6 +1186,7 @@ for my $sid (sort keys %seq) {
       }
     }
 
+    # Write ".ffn" and ".faa" outputs
     my $p = $seq{$sid}{DNA}->trunc($f->location);
     $p->display_id( TAG($f, 'locus_tag') );
     $p->desc( TAG($f, 'product') ) if $f->has_tag('product');
@@ -1191,6 +1199,7 @@ for my $sid (sort keys %seq) {
   }
 }
 
+# Add sequences to the ".gff" output
 if (scalar keys %seq) {
   print $gff_fh "##FASTA\n";
   my $seqio = Bio::SeqIO->new(-fh=>$gff_fh, -format=>'fasta');
@@ -1234,10 +1243,15 @@ msg("Generating Genbank and Sequin files");
 #runcmd("tbl2asn -a s -q F -A $prefix -N 1 -y 'Annotated using $EXE $VERSION from $URL' -Z $outdir/$prefix.err -M n -V b -i $outdir/$prefix.fsa -f $outdir/$prefix.tbl 2> /dev/null");
 #runcmd("tbl2asn -V b -a s -A $prefix -N 1 -y 'Annotated using $EXE $VERSION from $URL' -Z $outdir/$prefix.err -i $outdir/$prefix.fsa");
 #runcmd("tbl2asn -V b -a s -N 1 -y 'Annotated using $EXE $VERSION from $URL' -Z $outdir/$prefix.err -i $outdir/$prefix.fsa 2> /dev/null");
-runcmd("tbl2asn -V b -a r10k -l paired-ends -M n -N 1 -y 'Annotated using $EXE $VERSION from $URL' -Z $outdir/$prefix.err -i $outdir/$prefix.fsa 2> /dev/null");
+
+# Original PROKKA command
+#runcmd("tbl2asn -V b -a r10k -l paired-ends -M n -N 1 -y 'Annotated using $EXE $VERSION from $URL' -Z $outdir/$prefix.err -i $outdir/$prefix.fsa 2> /dev/null");
+# Modified one
+runcmd("tbl2asn -V b -a r10k -l paired-ends -M n -N 1 -y 'Annotated using $EXE $VERSION from $URL' -Z $outdir/$prefix.err -i $outdir/$prefix.fsa -f $outdir/$prefix.tbl 2> /dev/null");
+
 delfile("$outdir/errorsummary.val");
 delfile( map { "$outdir/$prefix.$_" } qw(dr fixedproducts ecn val) );
-move("$outdir/$prefix.gbf", "$outdir/$prefix.gbk"); # rename XXX.gbf to XXX.gbk
+move("$outdir/$prefix.gbf", "$outdir/$prefix.gbk");
 
 # . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
 # Some final log output
