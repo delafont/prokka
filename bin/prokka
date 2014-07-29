@@ -20,6 +20,7 @@
 use strict;
 use warnings;
 use File::Copy;
+use File::Path;
 use Time::Piece;
 use Time::Seconds;
 use XML::Simple;
@@ -356,7 +357,8 @@ if (($ips_appl or $ips_goterms or $ips_pathways) and ! $ips) {
     $ips = 1;
 }
 if (! -d $ips_tempdir) {
-    err("Folder $ips_tempdir does not exist. Create it first.\n");
+    err("Folder $ips_tempdir does not exist. Creating it.\n");
+    make_path($ips_tempdir);
 }
 
 # . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
@@ -1099,11 +1101,18 @@ if ($ips) {
     my $ips_outformat = "GFF3";
     my $ips_out = "${faa_name}_ips." . lc ${ips_outformat};
     if (1) {
-        my $cmd = "interproscan.sh --input $faa_name --seqtype p --formats $ips_outformat --iprlookup --outfile $ips_out";
+        # Create the unique clusterrunid
+        my @charset = ('A'..'Z', 'a'..'z', 0..9);
+        my $runid = join '', @charset[map {int rand @charset} (1..20)];
+        msg("Cluster run ID:", $runid);
+        # Build the command
+        my $cmd = "interproscan.sh --input $faa_name --seqtype p --formats $ips_outformat --iprlookup --outfile $ips_out -mode cluster -clusterrunid uniqueName";
         if ($ips_appl) { $cmd = $cmd . " --appl $ips_appl"; }
-        if ($ips_tempdir) { $cmd = $cmd . "--tempdir $ips_tempdir"; }
+        if ($ips_tempdir) { $cmd = $cmd . " --tempdir $ips_tempdir"; }
         if ($ips_goterms) { $cmd = $cmd . " --goterms"; }
         if ($ips_pathways) { $cmd = $cmd . " --pathways"; }
+        # Run on the cluster
+        $cmd = "bsub -K -n 16 -J $runid -o $outdir/ips_lsf.out -e $outdir/ips_lsf.err '$cmd'";
         msg("Running: $cmd");
         system($cmd);
     }
@@ -1539,10 +1548,10 @@ sub setOptions {
     {OPT=>"rfam",  VAR=>\$rfam, DEFAULT=>0, DESC=>"Enable searching for ncRNAs with Infernal+Rfam (SLOW!)"},
     {OPT=>"norrna!",  VAR=>\$norrna, DEFAULT=>0, DESC=>"Don't run rRNA search"},
     {OPT=>"notrna!",  VAR=>\$notrna, DEFAULT=>0, DESC=>"Don't run tRNA search"},
-    # InterProScan options
+    'InterProScan options:',
     {OPT=>"ips!",  VAR=>\$ips, DEFAULT=>0, DESC=>"Run InterProScan to annotate protein domains."},
     {OPT=>"ips_appl=s",  VAR=>\$ips_appl, DEFAULT=>0, DESC=>"Comma-separated list of InterProScan analyses to run (IPS --appl option)."},
-    {OPT=>"ips_tempdir=s",  VAR=>\$ips_tempdir, DEFAULT=>0, DESC=>"Temporary folder for IPS intermediate files."},
+    {OPT=>"ips_tempdir=s",  VAR=>\$ips_tempdir, DEFAULT=>'./temp', DESC=>"Temporary folder for IPS intermediate files."},
     {OPT=>"ips_goterms!",  VAR=>\$ips_goterms, DEFAULT=>0, DESC=>"Search for GO terms (IPS --goterms option)."},
     {OPT=>"ips_pathways!",  VAR=>\$ips_pathways, DEFAULT=>0, DESC=>"Pathways analysis (IPS --pathways options)."},
   );
