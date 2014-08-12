@@ -346,6 +346,7 @@ $ENV{HMMER_NCPU} = 1;
 
 # InterProScan options
 # - each appl name given to --ips_appl is in the list
+# Use a kind of grep instead to allow versions?
 if ($ips_appl) {
     my @available_appl = ("\"tigrfam\"", "\"prodom\"", "\"panther\"", "\"smart\"", "\"prosite\"",
        "\"superfamily\"", "\"prints\"", "\"gene3d\"", "\"pfirsf\"", "\"pfama\"", "\"hamap\"",
@@ -360,9 +361,8 @@ if ($ips_appl) {
 if (($ips_appl or $ips_goterms or $ips_pathways) and ! $ips) {
     $ips = 1;
 }
-if (! -d $ips_tempdir) {
-    err("Folder $ips_tempdir does not exist. Creating it.\n");
-    make_path($ips_tempdir);
+if ($ips_tempdir and ! -d $ips_tempdir) {
+    err("Folder $ips_tempdir does not exist.\n");
 }
 
 # . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
@@ -1116,17 +1116,15 @@ if ($ips) {
             my @charset = ('A'..'Z', 'a'..'z', 0..9);
             my $runid = join '', @charset[map {int rand @charset} (1..20)];  # unique clusterrunid
             $cmd = "$cmd -mode cluster -clusterrunid $runid";
-            # own bsub ?
-            #$cmd = "bsub -K -n 16 -J $runid -o $outdir/ips_lsf.out -e $outdir/ips_lsf.err '$cmd'";
         }
         msg("Running: $cmd");
         system($cmd);
-    }
+    } else { $ips_out = "PROKKA_08122014/PROKKA_08122014_proteins.faa_ips.gff3"; }  # TEST
 
     # Read the GFF and build a map {CDS => [domains]}
     if (-e $ips_out) {
         my $gffio = Bio::Tools::GFF->new(-file => $ips_out, -gff_version => 3);
-        #$gffio->ignore_sequence(1);  # ignore sequence data
+        #$gffio->ignore_sequence(1);  # ignore sequence data -- not working?
         my $feature;
         my %gff_map;
         while ($feature = $gffio->next_feature()) {
@@ -1563,7 +1561,7 @@ sub setOptions {
     'InterProScan options:',
     {OPT=>"ips!",  VAR=>\$ips, DEFAULT=>0, DESC=>"Run InterProScan to annotate protein domains."},
     {OPT=>"ips_appl=s",  VAR=>\$ips_appl, DEFAULT=>0, DESC=>"Comma-separated list of InterProScan analyses to run (IPS --appl option)."},
-    {OPT=>"ips_tempdir=s",  VAR=>\$ips_tempdir, DEFAULT=>'./temp', DESC=>"Temporary folder for IPS intermediate files."},
+    {OPT=>"ips_tempdir=s",  VAR=>\$ips_tempdir, DEFAULT=>'', DESC=>"Temporary folder for IPS intermediate files."},
     {OPT=>"ips_goterms!",  VAR=>\$ips_goterms, DEFAULT=>0, DESC=>"Search for GO terms (IPS --goterms option)."},
     {OPT=>"ips_pathways!",  VAR=>\$ips_pathways, DEFAULT=>0, DESC=>"Pathways analysis (IPS --pathways options)."},
   );
