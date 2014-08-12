@@ -16,6 +16,10 @@
 #
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+#    This version has been modified from the original by Julien Delafontaine
+#    to include InterProScan as an option to further look for protein domains
+#    annotation.
 
 use strict;
 use warnings;
@@ -1101,55 +1105,63 @@ if ($ips) {
     my $ips_outformat = "GFF3";
     my $ips_out = "${faa_name}_ips." . lc ${ips_outformat};
     if (1) {
-        # Create the unique clusterrunid
-        my @charset = ('A'..'Z', 'a'..'z', 0..9);
-        my $runid = join '', @charset[map {int rand @charset} (1..20)];
-        msg("Cluster run ID:", $runid);
         # Build the command
-        my $cmd = "interproscan.sh --input $faa_name --seqtype p --formats $ips_outformat --iprlookup --outfile $ips_out -mode cluster -clusterrunid uniqueName";
+        my $cmd = "interproscan.sh --input $faa_name --seqtype p --formats $ips_outformat --iprlookup --outfile $ips_out";
         if ($ips_appl) { $cmd = $cmd . " --appl $ips_appl"; }
         if ($ips_tempdir) { $cmd = $cmd . " --tempdir $ips_tempdir"; }
         if ($ips_goterms) { $cmd = $cmd . " --goterms"; }
         if ($ips_pathways) { $cmd = $cmd . " --pathways"; }
-        # Run on the cluster
-        $cmd = "bsub -K -n 16 -J $runid -o $outdir/ips_lsf.out -e $outdir/ips_lsf.err '$cmd'";
+        # Cluster mode
+        if (1) {
+            my @charset = ('A'..'Z', 'a'..'z', 0..9);
+            my $runid = join '', @charset[map {int rand @charset} (1..20)];  # unique clusterrunid
+            $cmd = "$cmd -mode cluster -clusterrunid $runid";
+            # own bsub ?
+            #$cmd = "bsub -K -n 16 -J $runid -o $outdir/ips_lsf.out -e $outdir/ips_lsf.err '$cmd'";
+        }
         msg("Running: $cmd");
         system($cmd);
     }
 
     # Read the GFF and build a map {CDS => [domains]}
-    my $gffio = Bio::Tools::GFF->new(-file => $ips_out, -gff_version => 3);
-    #$gffio->ignore_sequence(1);  # ignore sequence data
-    my $feature;
-    my %gff_map;
-    while ($feature = $gffio->next_feature()) {
-        my $fid = $feature->seq_id;
-        ($fid,my $sid) = split /::/, $fid;
-        $feature->seq_id($sid);
-        if (exists $gff_map{$fid}) {
-            push(@{$gff_map{$fid}}, $feature);
-        } else {
-            $gff_map{$fid} = [];
-        }
-    }
-    $gffio->close();
-
-    # Edit CDS in %seq with the new domains info
-    for my $sid (keys %seq) {
-        for my $f (@{ $seq{$sid}{FEATURE} }) {
-            my $fid = TAG($f,'locus_tag');
-            next unless exists $gff_map{$fid};
-            foreach (@{$gff_map{$fid}}){
-                my $source = "InterPro";
-                    # Not "$_->source_tag;": it only works with some specific know names:
-                    # http://www.ncbi.nlm.nih.gov/genbank/collab/db_xref
-                my $name = TAG($_,'Name');
-                $f->add_tag_value('db_xref', "$source:$name");
+    if (-e $ips_out) {
+        my $gffio = Bio::Tools::GFF->new(-file => $ips_out, -gff_version => 3);
+        #$gffio->ignore_sequence(1);  # ignore sequence data
+        my $feature;
+        my %gff_map;
+        while ($feature = $gffio->next_feature()) {
+            my $fid = $feature->seq_id;
+            ($fid,my $sid) = split /::/, $fid;
+            $feature->seq_id($sid);
+            if (exists $gff_map{$fid}) {
+                push(@{$gff_map{$fid}}, $feature);
+            } else {
+                $gff_map{$fid} = [];
             }
         }
+        $gffio->close();
+
+        # Edit CDS in %seq with the new domains info
+        for my $sid (keys %seq) {
+            for my $f (@{ $seq{$sid}{FEATURE} }) {
+                my $fid = TAG($f,'locus_tag');
+                next unless exists $gff_map{$fid};
+                foreach (@{$gff_map{$fid}}){
+                    my $source = "InterPro";
+                        # Not "$_->source_tag;": it only works with some specific know names:
+                        # http://www.ncbi.nlm.nih.gov/genbank/collab/db_xref
+                    my $name = TAG($_,'Name');
+                        # Should be "IPR..." if --ipr_lookup worked correctly
+                        # (i.e. if the db was found and corresponds to the program version)
+                    $f->add_tag_value('db_xref', "$source:$name");
+                }
+            }
+        }
+        delfile($ips_out);
+    } else {
+        msg("InterProScan failed: $ips_out does not exist.");
     }
     delfile($faa_name);
-    delfile($ips_out);
 } else {
   msg("Skipping InterProScan, enable with --ips if desired.");
 }
