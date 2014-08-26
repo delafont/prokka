@@ -349,7 +349,7 @@ $ENV{HMMER_NCPU} = 1;
 # Use a kind of grep instead to allow versions?
 if ($ips_appl) {
     my @available_appl = ("\"tigrfam\"", "\"prodom\"", "\"panther\"", "\"smart\"", "\"prosite\"",
-       "\"superfamily\"", "\"prints\"", "\"gene3d\"", "\"pfirsf\"", "\"pfama\"", "\"hamap\"",
+       "\"superfamily\"", "\"prints\"", "\"gene3d\"", "\"pirsf\"", "\"pfama\"", "\"hamap\"",
        "\"coils\"", "\"signalp\"");
     my @ips_appl = split(/,/, $ips_appl);
     foreach (@ips_appl) {
