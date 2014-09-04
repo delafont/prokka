@@ -1105,7 +1105,7 @@ if ($ips) {
     my $ips_outformat = "GFF3";
     my $ips_out = "${faa_name}_ips." . lc ${ips_outformat};
     if (1) {
-        # Build the command
+        # Build the IPS command
         my $cmd = "interproscan.sh --input $faa_name --seqtype p --formats $ips_outformat --iprlookup --outfile $ips_out";
         if ($ips_appl) { $cmd = $cmd . " --appl $ips_appl"; }
         if ($ips_tempdir) { $cmd = $cmd . " --tempdir $ips_tempdir"; }
@@ -1117,9 +1117,9 @@ if ($ips) {
             my $runid = join '', @charset[map {int rand @charset} (1..20)];  # unique clusterrunid
             $cmd = "$cmd -mode cluster -clusterrunid $runid";
         }
-        msg("Running: $cmd");
+        msg("Running InterProScan: $cmd");
         system($cmd);
-    } else { $ips_out = "PROKKA_08122014/PROKKA_08122014_proteins.faa_ips.gff3"; }  # TEST
+    } else { $ips_out = "PROKKA_09042014/PROKKA_09042014_proteins.faa_ips.gff3"; }  # TEST
 
     # Read the GFF and build a map {CDS => [domains]}
     if (-e $ips_out) {
@@ -1148,10 +1148,20 @@ if ($ips) {
                     my $source = "InterPro";
                         # Not "$_->source_tag;": it only works with some specific know names:
                         # http://www.ncbi.nlm.nih.gov/genbank/collab/db_xref
-                    my $name = TAG($_,'Name');
-                        # Should be "IPR..." if --ipr_lookup worked correctly
-                        # (i.e. if the db was found and corresponds to the program version)
-                    $f->add_tag_value('db_xref', "$source:$name");
+                    #msg($_->get_all_tags());  # Dbxref ID Name Ontology_term Target date score signature_desc status
+                    my $go = TAG($_,'Ontology_term');
+                    if ($go and not $go=~/^\s*$/) {     # GO terms
+                        $go =~ s/^"//; $go =~ s/"$//g;     # remove quotes
+                        $f->add_tag_value('db_xref', $go);
+                    }
+                    my $dbx = TAG($_,'Dbxref');         # IPR results (--iprlookup)
+                    if ($dbx and not $dbx=~/^\s*$/) {
+                        $dbx =~ s/^"//; $dbx =~ s/"$//g;   # remove quotes
+                        $f->add_tag_value('db_xref', $dbx);
+                    } else {
+                        my $name = TAG($_,'Name');      # PF0000X (individual db results)
+                        $f->add_tag_value('db_xref', "$source:$name");
+                    }
                 }
             }
         }
