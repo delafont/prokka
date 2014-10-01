@@ -1297,7 +1297,6 @@ move("$outdir/$prefix.gbf", "$outdir/$prefix.gbk");
 # Generate .embl output from .gbk
 
 msg("Generating .embl file from .gbk");
-
 # Write the .embl
 my $embl_fh = Bio::SeqIO->new(-file=>">$outdir/$prefix.embl", '-format'=>'embl');
 my $seqio = Bio::SeqIO->new('-format' => 'genbank', '-file' => "$outdir/$prefix.gbk");
@@ -1351,12 +1350,15 @@ foreach $tag (@embl_fields) {
         }   }
         else {
             foreach (@embl_header) {
-                if ($_ =~ /^$tag/) {print $embl_handle_out $_;}
-    }   }   }
+                if ($_ =~ /^$tag/) {
+                    if ($tag eq "ID") { $_ =~ s/unassigned\ DNA/genomic\ DNA/g; }
+                    print $embl_handle_out $_;
+    }   }   }   }
 }
 # Continue writing the rest
 print $embl_handle_out $lastline;
 while ( $line = <$embl_handle_in> ) {
+    # TODO: remove "$centre:" from "/protein_id ..." lines
     print $embl_handle_out $line;
 }
 close $embl_handle_in;
