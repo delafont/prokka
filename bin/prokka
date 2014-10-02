@@ -1108,7 +1108,7 @@ if ($ips) {
     # Run InterProScan - cannot output to stdout...
     my $ips_outformat = "GFF3";
     my $ips_out = "${faa_name}_ips." . lc ${ips_outformat};
-    if (0) {
+    if (1) {
         # Build the IPS command
         my $cmd = "interproscan.sh --input $faa_name --seqtype p --formats $ips_outformat --iprlookup --outfile $ips_out";
         if ($ips_appl) { $cmd = $cmd . " --appl $ips_appl"; }
@@ -1149,7 +1149,6 @@ if ($ips) {
                 next unless $f->primary_tag eq 'CDS';  # if --compliant "gene" lines are added with no feature ID
                 #msg($f->get_all_tags());  # ID inference locus_tag product protein_id
                 my $fid = TAG($f,'locus_tag');
-                msg(TAG($f,'protein_id'));
                 next unless defined $gff_map{$fid};
                 foreach (@{$gff_map{$fid}}){
                     my $source = "InterPro";
@@ -1169,7 +1168,7 @@ if ($ips) {
                 }
             }
         }
-        #delfile($ips_out);
+        delfile($ips_out);
     } else {
         msg("InterProScan failed: $ips_out does not exist.");
     }
