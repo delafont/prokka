@@ -224,7 +224,7 @@ my(@Options, $quiet, $kingdom, $fast, $force, $outdir, $prefix, $cpus, $addgenes
              $rfam, $norrna, $notrna,
              $metagenome, $compliant, $listdb, $citation,
              # InterProScan bindings
-             $ips, $ips_appl, $ips_goterms, $ips_pathways, $ips_tempdir, $ips_config);
+             $ips, $ips_appl, $ips_goterms, $ips_pathways, $ips_tempdir, $embl_header);
 setOptions();
 
 # . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
@@ -1310,8 +1310,8 @@ my @embl_fields = ("ID","AC","PR","DT","DE","KW","OS","OC","OG",
 # Better use a hash but perl hashes syntax sucks
 my @ipsconfig = ();
 my $primary_contig = '';
-if (-e $ips_config) {
-    open my $ipsconfig_handle, "<", $ips_config;
+if (-e $embl_header) {
+    open my $ipsconfig_handle, "<", $embl_header;
     while ( my $line = <$ipsconfig_handle> ) {
         if ($line =~ /^#/) {next;}
         push @ipsconfig, $line;
@@ -1669,7 +1669,7 @@ sub setOptions {
     {OPT=>"ips_tempdir=s",  VAR=>\$ips_tempdir, DEFAULT=>'', DESC=>"Temporary folder for IPS intermediate files."},
     {OPT=>"ips_goterms!",  VAR=>\$ips_goterms, DEFAULT=>0, DESC=>"Search for GO terms (IPS --goterms option)."},
     {OPT=>"ips_pathways!",  VAR=>\$ips_pathways, DEFAULT=>0, DESC=>"Pathways analysis (IPS --pathways options)."},
-    {OPT=>"ips_config=s",  VAR=>\$ips_config, DEFAULT=>'', DESC=>"Header lines for EMBL format."},
+    {OPT=>"embl_header=s",  VAR=>\$embl_header, DEFAULT=>'', DESC=>"Header lines for EMBL format."},
   );
 
   (!@ARGV) && (usage());
