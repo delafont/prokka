@@ -39,7 +39,6 @@ use Bio::Seq;
 use Bio::SeqFeature::Generic;
 use Bio::Tools::GFF;
 use FindBin;
-use feature qw(say);
 
 # . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
 # global variables
@@ -224,7 +223,7 @@ my(@Options, $quiet, $kingdom, $fast, $force, $outdir, $prefix, $cpus, $addgenes
              $rfam, $norrna, $notrna,
              $metagenome, $compliant, $listdb, $citation,
              # InterProScan bindings
-             $ips, $ips_appl, $ips_goterms, $ips_pathways, $ips_tempdir, $embl_header);
+             $ips, $ips_appl, $ips_goterms, $ips_pathways, $ips_tempdir, $embl_config);
 setOptions();
 
 # . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
@@ -543,7 +542,7 @@ if ($kingdom ne 'Viruses' and !$norrna) {
       $feat->remove_tag('Name'); # only want /product
       push @{$seq{$feat->seq_id}{FEATURE}}, $feat;
       $num_rrna++;
-      msg("$num_rrna", $feat->seq_id, $feat->start, $feat->get_tag_values('product'));
+      #msg("$num_rrna", $feat->seq_id, $feat->start, $feat->get_tag_values('product'));
     }
     msg("Found $num_rrna rRNAs");
   }
@@ -1046,6 +1045,8 @@ msg("Fixed $num_collide colliding /gene names.");
 msg("Adding /locus_tag identifiers");
 my $num_lt=0;
 my $num_lt_suffix="1";
+# For .embl protein ID, trucate to < 3 chars of locustag>< 5 digits>.< 1 digit>
+my $sublocus = substr( ((length($locustag) < 3) ? $locustag."XXX" : $locustag) , 0,3);
 for my $sid (sort keys %seq) {
   for my $f ( sort { $a->start <=> $b->start } @{ $seq{$sid}{FEATURE} }) {
     next unless $f->primary_tag =~ m/CDS|RNA/;
@@ -1056,7 +1057,7 @@ for my $sid (sort keys %seq) {
     # it seems CDS features _must_ have a valid /protein_id to be output by tbl2asn into .gbk
     if ($centre and $f->primary_tag eq 'CDS') {
       #$f->add_tag_value('protein_id', "gnl|$centre|$ID")  # original
-      my $protein_ID = sprintf(substr($locustag, 0,3)."%05d.%d", $num_lt * $increment, $num_lt_suffix);
+      my $protein_ID = sprintf($sublocus."%05d.%d", $num_lt * $increment, $num_lt_suffix);
       $f->add_tag_value('protein_id', "gnl|$centre|$protein_ID");
     }
     if ($addgenes) {
@@ -1123,7 +1124,7 @@ if ($ips) {
         }
         msg("Running InterProScan: $cmd");
         system($cmd);
-    } else { $ips_out = "PROKKA_09242014/PROKKA_09242014_proteins.faa_ips.gff3"; }  # TEST
+    } else { $ips_out = "B3_10312014/B3_10312014_proteins.faa_ips.gff3"; }  # TEST
 
     # Read the GFF and build a map {CDS => [domains]}
     if (-e $ips_out) {
@@ -1168,7 +1169,7 @@ if ($ips) {
                 }
             }
         }
-        delfile($ips_out);
+        #delfile($ips_out);
     } else {
         msg("InterProScan failed: $ips_out does not exist.");
     }
@@ -1306,81 +1307,86 @@ while( my $seq = $seqio->next_seq) {
 my @embl_fields = ("ID","AC","PR","DT","DE","KW","OS","OC","OG",
     "RN","RC","RP","RX","RG","RA","RT","RL",   # -> citation tags
     "DR","CC","AH","AS","CO");
-# Read config, if given
-# Better use a hash but perl hashes syntax sucks
-my @ipsconfig = ();
-my $primary_contig = '';
-if (-e $embl_header) {
-    open my $ipsconfig_handle, "<", $embl_header;
-    while ( my $line = <$ipsconfig_handle> ) {
-        if ($line =~ /^#/) {next;}
-        push @ipsconfig, $line;
-        # Remember the first contig seen in AC -> primary one
-        if ($line =~ /^AC/) { $primary_contig = (split ';', (split '   ', $line)[1])[0]; }
+
+# Read config file, if given
+my %config_header = ();
+if (-e $embl_config) {
+    open my $config_header_handle, "<", $embl_config;
+    while ( my $line = <$config_header_handle> ) {
+        next if ($line =~ /^#/);
+        my $tag = substr $line, 0, 2;
+        next if ($tag eq "ID" || $tag eq "AC");  # do not allow to change these for now
+        chomp $line;
+        if (exists $config_header{$tag}) {
+            $config_header{$tag} = "$config_header{$tag}||$line";
+        } else {
+            $config_header{$tag} = $line;
+        }
     }
-    close $ipsconfig_handle;
+    close $config_header_handle;
 }
-# Rewrite it with modified header...
+
+# Rewrite the headers, edit protein_ids
 open my $embl_handle_in, "<", "$outdir/$prefix.pre.embl";
-my @contigs = keys %seq;
-my $lastline = "";
-my @embl_header = ();
-# Store the header info
-while ( my $embl_line = <$embl_handle_in> ) {
-    if ($embl_line =~ /^FT|^FH|^SQ/) {
-        $lastline = $embl_line;
-        last;
-    }
-    else {push @embl_header, $embl_line;}
-}
-# Rewrite the header
 open my $embl_handle_out, ">", "$outdir/$prefix.embl";
-foreach my $tag (@embl_fields) {
-    my $inconfig = 0;
-    my $inheader = 0;
-    # Write all lines from config as they are
-    foreach (@ipsconfig) {
-        if ($_ =~ /^$tag/) {
-            print $embl_handle_out $_;
-            $inconfig = 1;
-    }   }
-    # If not in config, keep what was already there, except AC and ID
-    if (! $inconfig) {
-        # AC contigs are "unknown", add them from `keys %seq`
-        if ($tag eq "AC") {
-            foreach my $contig (@contigs) {
-                $contig = (split '\|', $contig)[-1];
-                print $embl_handle_out join("   ","AC",$contig).";\n";
-        }   }
-        # Copy other lines as they are, except ID
-        else {
-            foreach (@embl_header) {
-                if ($_ =~ /^$tag/) {
-                    if ($tag eq "ID") {
-                        $_ =~ s/unassigned\ DNA/genomic\ DNA/g;
-                        # Remove the original-placeholder contig ID
-                        my @temp = split(';', $_);  # forced, good perl
-                        shift(@temp);
-                        # Get the primary contig either from config AC or from `keys %seq`
-                        my $contig = $primary_contig ne '' ? $primary_contig : (split '\|', $contigs[0])[-1];
-                        my $idline = $contig.";".join(';',@temp) ;
-                        print $embl_handle_out join("   ","ID",$idline);
+my %fieldset = map { $_ => 1 } @embl_fields;  # transform to set for faster contain check
+my %embl_header = ();  # buffer containing successive header lines
+my $lasttag = '';
+my $primary_contig = '';
+while ( my $line = <$embl_handle_in> ) {
+    my $tag = substr $line, 0, 2;
+    next if ($tag eq "XX");
+    # Store consecutive pre-embl header lines in buffer, same as for the config
+    if (exists $fieldset{$tag}) {
+        chomp $line;
+        if (exists $embl_header{$tag}) {
+            $embl_header{$tag} = "$embl_header{$tag}||$line";
+        } else {
+            $embl_header{$tag} = $line;
+        }
+    # Non-header lines
+    } else {
+        # Remove "$centre:" from "/protein_id ..." lines
+        if ($line =~ m/\/protein_id/) {
+            $line =~ s/$centre://g;
+            print $embl_handle_out $line;
+        } elsif ($line =~ m/\/estimated_length/) {
+            $line =~ s/"//g;
+            print $embl_handle_out $line;
+        } elsif ($line =~ m/\/inference/) {
+            $line =~ s/ profile/profile/g;
+            print $embl_handle_out $line;
+        # Write and empty header lines buffer
+        } elsif (exists $fieldset{$lasttag}) {
+            foreach my $tag2 (@embl_fields) {
+                my $headerline = '';
+                if (exists $config_header{$tag2}) {
+                    $headerline = $config_header{$tag2};
+                } elsif (exists $embl_header{$tag2}) {
+                    $headerline = $embl_header{$tag2};
+                }
+                if (defined $headerline) {
+                    if ($tag2 eq "ID") {
+                        $headerline =~ s/unassigned\ DNA/genomic\ DNA/g;
+                        $primary_contig = (split ';', (split /ID\s+/, $headerline)[1])[0];
+                    } elsif ($tag2 eq "AC") {
+                        $headerline =~ s/unknown/$primary_contig/g;
                     }
-                    else {print $embl_handle_out $_;}
-    }   }   }   }
-}
-# Continue writing the rest
-print $embl_handle_out $lastline;
-while ( my $embl_line = <$embl_handle_in> ) {
-    # Remove "$centre:" from "/protein_id ..." lines
-    if ($embl_line =~ m/\/protein_id/) {
-        $embl_line =~ s/$centre://g;
+                    foreach my $headline (split(/\|\|/, $headerline)) {
+                        print $embl_handle_out $headline."\n";
+                    }
+                }
+            }
+            %embl_header = ();
+        # Any other kind of line unchanged
+        } else { print $embl_handle_out $line; }
     }
-    print $embl_handle_out $embl_line;
+    $lasttag = $tag;
 }
+
 close $embl_handle_in;
 close $embl_handle_out;
-delfile("$outdir/$prefix.pre.embl");
+#delfile("$outdir/$prefix.pre.embl");
 
 
 # . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
@@ -1669,7 +1675,7 @@ sub setOptions {
     {OPT=>"ips_tempdir=s",  VAR=>\$ips_tempdir, DEFAULT=>'', DESC=>"Temporary folder for IPS intermediate files."},
     {OPT=>"ips_goterms!",  VAR=>\$ips_goterms, DEFAULT=>0, DESC=>"Search for GO terms (IPS --goterms option)."},
     {OPT=>"ips_pathways!",  VAR=>\$ips_pathways, DEFAULT=>0, DESC=>"Pathways analysis (IPS --pathways options)."},
-    {OPT=>"embl_header=s",  VAR=>\$embl_header, DEFAULT=>'', DESC=>"Header lines for EMBL format."},
+    {OPT=>"embl_header=s",  VAR=>\$embl_config, DEFAULT=>'', DESC=>"Header lines for EMBL format."},
   );
 
   (!@ARGV) && (usage());
