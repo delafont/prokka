@@ -16,8 +16,20 @@ Many thanks to Ivan Topolski and Robin Engler for their support.
 ##Installation
 
 This version will come already installed in Vital-IT machines,
-with all its dependecies.
-But you can follow these steps if you want to install it locally:
+with all its dependecies:
+
+* Load the module with
+
+    module add UHTS/Analysis/prokka/1.9.1.ips1
+
+* To add optional dependencies, prepend
+
+    module add SequenceAnalysis/HMM-Profile/hmmer/<version>;
+    module add UHTS/Analysis/barrnap/<version>;
+    module add SequenceAnalysis/StructurePrediction/signalp/<version>;
+    module add SequenceAnalysis/SequenceAlignment/interproscan/<version>;
+
+But you can also follow these steps if you want to install this version locally:
 
 ###Download the archive and extract
 
