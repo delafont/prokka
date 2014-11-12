@@ -17,9 +17,9 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
-#    This version has been modified from the original by Julien Delafontaine
+#    This version has been forked from the original by Julien Delafontaine
 #    to include InterProScan as an option to further look for protein domains
-#    annotation.
+#    annotation. Contact: Laurent Falquet, University of Fribourg, Switzerland.
 #    Many thanks to Ivan Topolski and Robin Engler for their support.
 
 use strict;
@@ -47,7 +47,7 @@ my @CMDLINE = @ARGV;
 my $OPSYS = $^O;
 my $BINDIR = "$FindBin::RealBin/../binaries/$OPSYS";
 my $EXE = $FindBin::RealScript;
-my $VERSION = "1.9.1-testing";
+my $VERSION = "1.9.1.100";
 my $AUTHOR = 'Torsten Seemann <torsten.seemann@monash.edu>';
 my $URL = 'http://www.vicbioinformatics.com';
 my $DBDIR = "$FindBin::RealBin/../db";
@@ -235,7 +235,7 @@ msg("Victorian Bioinformatics Consortium - $URL");
 msg("Local time is $starttime");
 msg("You are", $ENV{USER} || 'not telling me who you are!');
 msg("Operating system is $OPSYS");
-msg("MODIFIED!");
+msg("! Forked version from 1.9.1 including InterProScan and .embl output format. !");
 
 # . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
 # check BioPerl version
@@ -1344,7 +1344,7 @@ while ( my $line = <$embl_handle_in> ) {
         } else {
             $embl_header{$tag} = $line;
         }
-    # Non-header lines
+    # Non-header lines - release buffer
     } else {
         # Remove "$centre:" from "/protein_id ..." lines
         if ($line =~ m/\/protein_id/) {
@@ -1369,6 +1369,7 @@ while ( my $line = <$embl_handle_in> ) {
                     if ($tag2 eq "ID") {
                         $headerline =~ s/unassigned\ DNA/genomic\ DNA/g;
                         $primary_contig = (split ';', (split /ID\s+/, $headerline)[1])[0];
+                        $headerline =~ s/$primary_contig/XXX/g;
                     } elsif ($tag2 eq "AC") {
                         $headerline =~ s/unknown/$primary_contig/g;
                     }
