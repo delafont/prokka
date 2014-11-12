@@ -22,7 +22,7 @@ with all its dependecies:
 
     module add UHTS/Analysis/prokka/1.9.1.ips1
 
-* To add optional dependencies, prepend
+* To add optional dependencies, in particular InterProScan, prepend
 
     module add SequenceAnalysis/HMM-Profile/hmmer/<version>;
     module add UHTS/Analysis/barrnap/<version>;
