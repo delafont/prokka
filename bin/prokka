@@ -47,7 +47,7 @@ my @CMDLINE = @ARGV;
 my $OPSYS = $^O;
 my $BINDIR = "$FindBin::RealBin/../binaries/$OPSYS";
 my $EXE = $FindBin::RealScript;
-my $VERSION = "1.9.1.100";
+my $VERSION = "1.9.1.ips1";
 my $AUTHOR = 'Torsten Seemann <torsten.seemann@monash.edu>';
 my $URL = 'http://www.vicbioinformatics.com';
 my $DBDIR = "$FindBin::RealBin/../db";
@@ -164,8 +164,8 @@ my %tools = (
     NEEDED  => 1,
   },
   'interproscan.sh' => {
-    GETVER  => "echo InterProScan-5.7",  # faster for testing
-    #GETVER  => "interproscan.sh - | head -1",  # 08/07/2014 10:40:47:348 Welcome to InterProScan-5.4-47.0
+    #GETVER  => "echo InterProScan-5.7",  # faster, for testing
+    GETVER  => "interproscan.sh - | head -1",
     REGEXP  => qr/InterProScan-($BIDEC)/,
     MINVER  => "5.4",
     NEEDED  => 0,
@@ -1648,6 +1648,7 @@ sub setOptions {
     {OPT=>"gffver=i",  VAR=>\$gffver, DEFAULT=>3, DESC=>"GFF version"},
     {OPT=>"compliant!",  VAR=>\$compliant, DEFAULT=>0, DESC=>"Force Genbank/ENA/DDJB compliance: --genes --mincontiglen 200 --centre XXX"},
     {OPT=>"centre=s",  VAR=>\$centre, DEFAULT=>'', DESC=>"Sequencing centre ID."},
+    {OPT=>"embl_header=s",  VAR=>\$embl_config, DEFAULT=>'', DESC=>"Header lines for EMBL format."},
 #    {OPT=>"scaffolds!",  VAR=>\$scaffolds, DEFAULT=>0, DESC=>"Break scaffoldings into contigs and create .AGP file"},
     'Organism details:',
     {OPT=>"genus=s",  VAR=>\$genus, DEFAULT=>'Genus', DESC=>"Genus name"},
@@ -1676,7 +1677,6 @@ sub setOptions {
     {OPT=>"ips_tempdir=s",  VAR=>\$ips_tempdir, DEFAULT=>'', DESC=>"Temporary folder for IPS intermediate files."},
     {OPT=>"ips_goterms!",  VAR=>\$ips_goterms, DEFAULT=>0, DESC=>"Search for GO terms (IPS --goterms option)."},
     {OPT=>"ips_pathways!",  VAR=>\$ips_pathways, DEFAULT=>0, DESC=>"Pathways analysis (IPS --pathways options)."},
-    {OPT=>"embl_header=s",  VAR=>\$embl_config, DEFAULT=>'', DESC=>"Header lines for EMBL format."},
   );
 
   (!@ARGV) && (usage());
