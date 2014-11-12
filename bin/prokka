@@ -478,7 +478,7 @@ else {
     next unless @x == 5 and $x[0] =~ m/^\d+$/;
     # and $x[4] =~ m/^\([ATCG]{3}\)$/i;
     #msg($_);
-    msg("@x");
+    #msg("@x");
     $x[2] =~ m/(c)?\[(\d+),(\d+)\]/;
     my($revcom, $start, $end) = ($1,$2,$3);
     # bug fix for aragorn when revcom trna ends at start of contig!
@@ -1124,7 +1124,7 @@ if ($ips) {
         }
         msg("Running InterProScan: $cmd");
         system($cmd);
-    } else { $ips_out = "B3_10312014/B3_10312014_proteins.faa_ips.gff3"; }  # TEST
+    } else { $ips_out = "B3EXTRACT_11122014/B3EXTRACT_11122014_proteins.faa_ips.gff3"; }  # TEST
 
     # Read the GFF and build a map {CDS => [domains]}
     if (-e $ips_out) {
@@ -1347,9 +1347,9 @@ while ( my $line = <$embl_handle_in> ) {
     # Non-header lines - release buffer
     } else {
         # Remove "$centre:" from "/protein_id ..." lines
-        if ($line =~ m/\/protein_id/) {
-            $line =~ s/$centre://g;
-            print $embl_handle_out $line;
+        if ($line =~ m/\/protein_id/) {  # according to ENA, just remove protein_id lines...
+            #$line =~ s/$centre://g;
+            #print $embl_handle_out $line;
         } elsif ($line =~ m/\/estimated_length/) {
             $line =~ s/"//g;
             print $embl_handle_out $line;
