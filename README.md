@@ -31,7 +31,6 @@ add the following line to your `$HOME/.bashrc` file::
     export PATH=$PATH:<...>/prokka-1.9.1.ips1
 
 ###Index the sequence databases
-::
 
     prokka --setupdb
 
