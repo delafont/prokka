@@ -3,31 +3,22 @@
 Torsten Seemann <torsten.seemann@monash.edu>
 Victorian Bioinformatics Consortium, AUSTRALIA <http://vicbioinformatics.com>
 
-##Introduction
-
-Whole genome annotation is the process of identifying features of interest in a set of genomic DNA sequences, and labelling them with useful information. Prokka is a software tool to annotate bacterial, archaeal and viral genomes quickly and produce standards-compliant output files.
-
 This version has been forked from the original repository
 to include InterProScan as an option to further look for protein domains
 annotation, as well as provide the EMBL output format.
 Contact: Laurent Falquet, University of Fribourg, Switzerland.
 Many thanks to Ivan Topolski and Robin Engler for their support.
 
+##Introduction
+
+Whole genome annotation is the process of identifying features of interest in a set of genomic DNA sequences, and labelling them with useful information. Prokka is a software tool to annotate bacterial, archaeal and viral genomes quickly and produce standards-compliant output files.
+
 ##Installation
 
 This version will come already installed in Vital-IT machines,
-with all its dependecies:
-
-* Load the module with
+with all its dependencies. Load the module with::
 
     module add UHTS/Analysis/prokka/1.9.1.ips1
-
-* To add optional dependencies, in particular InterProScan, prepend
-
-    module add SequenceAnalysis/HMM-Profile/hmmer/<version>;
-    module add UHTS/Analysis/barrnap/<version>;
-    module add SequenceAnalysis/StructurePrediction/signalp/<version>;
-    module add SequenceAnalysis/SequenceAlignment/interproscan/<version>;
 
 But you can also follow these steps if you want to install this version locally:
 
@@ -35,11 +26,12 @@ But you can also follow these steps if you want to install this version locally:
 
 Clone this repository or download the zipped version and decompress it.
 Then add the binary `prokka/bin/prokka` to your $PATH, that is,
-add the following line to your `$HOME/.bashrc` file:
+add the following line to your `$HOME/.bashrc` file::
 
     export PATH=$PATH:<...>/prokka-1.9.1.ips1
 
 ###Index the sequence databases
+::
 
     prokka --setupdb
 
@@ -48,29 +40,6 @@ add the following line to your `$HOME/.bashrc` file:
 Prokka comes with many binaries for Linux and Mac OS X. It will always use your existing installed versions if they exist, but will use the included ones if that fails. For some older systems (eg. Centos 4.x) some of them won't work due to them being dynamically linked against new GLIBC libraries you don't have.
 
 You can consult the list of dependencies later in this document.
-
-###Choose a rRNA predictor
-
-####Option 1 - Don't use one
-
-If Prokka can't find a predictor for rRNA featues (either Barrnap or RNAmmer below) then it simply won't annotate any. Most people don't care that much about them anyway,
-
-####Option 2 - Barrnap
-
-This was written by the author of Prokka and is recommended if you prefer speed over absolute accuracy. It uses the new multi-core NHMMER for DNA:DNA profile searches. Download it here.
-
-####Option 3 - RNAmmer
-
-RNAmmer was written when HMMER 2.x was the latest release. Since them, HMMER 3.x has been released, and uses the same executable binary names. Prokka needs HMMER3 and RNAmmer (and hence HMMER2) so you need to edit your RNAmmer script to explicitly point your HMMER2 binary instead of using the HMMER3 binary which is more likely to be in your PATH first.
-
-Type which rnammer to find the script, and then edit it with your favourite editor. Find the following lines at the top:
-
-    if ( $uname eq "Linux" ) {
-    #       $HMMSEARCH_BINARY = "/usr/cbs/bio/bin/linux64/hmmsearch";    # OLD
-            $HMMSEARCH_BINARY = "/path/to/my/hmmer-2.3.2/bin/hmmsearch"; # NEW (yours)
-    }
-
-If you are using Mac OS X, you'll also have to change the `"Linux"` to `"Darwin"` too. As you can see, I have commented out the original part, and replaced it with the location of my HMMER2 hmmsearch tool, so it doesn't run the HMMER3 one. You need to ensure HMMER3 is in your PATH before the old HMMER2 too.
 
 ###Test
 
@@ -116,6 +85,12 @@ If you are using Mac OS X, you'll also have to change the `"Linux"` to `"Darwin"
     # Add final details using Sequin
     % sequin mydir/EHEC_0607201.sqn
 
+###EBI submitter
+
+    # Add protein domains and use a config file to get a proper EMBL outpu
+    % prokka --compliant --centre EPFL --outdir PRJNA123456 --locustag TEST \
+      --ips --ips_goterms --ips_pathways --embl_header embl_header.txt contigs.fa
+
 ###Genbank submitter
 
     # Register your BioProject and your locus_tag prefix first!
@@ -139,12 +114,6 @@ If you are using Mac OS X, you'll also have to change the `"Linux"` to `"Darwin"
         --proteins /opt/prokka/db/trusted/Ecocyc-17.6 \
         --evalue 1e-9 --rfam \
         plasmid-closed.fna
-
-###EBI submitter
-
-    # Add protein domains and use a config file to get a proper EMBL outpu
-    % prokka --compliant --centre EPFL --outdir PRJNA123456 --locustag TEST \
-      --ips --ips_goterms --ips_pathways --embl_header embl_header.txt contigs.fa
 
 
 ##Output Files
@@ -175,6 +144,19 @@ If some of the tags are already present in the raw version produced
 automatically by Prokka, these lines will be replaced by the ones of the config file.
 If they are not present, these of the config will be added.
 Rewriting ID and AC lines is not allowed.
+
+Example of config file::
+
+    PR   Project:PRJNA0001;
+    RN   [5]
+    RP   1-1859
+    RX   DOI; 10.1007/BF00039495.
+    RX   PUBMED; 1010101.
+    RA   Author A, Author B,
+    RA   Author C, Author D;
+    RT   "Project title";
+    RT   "Secondary title";
+    RL   Plant Mol. Biol. 17(2):209-219(1991).
 
 ##Command line options
 
@@ -311,7 +293,7 @@ https://code.google.com/p/interproscan/wiki/HowToDownload#2._Installing_Panther_
 In this version of prokka, when IPS is activated (--ips option) it runs with "IPR lookup", which either
 will be very slow through web requests, or requires the installation of a local copy of the service:
 https://code.google.com/p/interproscan/wiki/LocalLookupService
-This service is already provided on Vital-IT servers.
+This service is already provided on Vital-IT servers (rserv01).
 
 In general, see here for more about IPS installation and configuration:
 See https://code.google.com/p/interproscan/wiki/Introduction .

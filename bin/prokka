@@ -63,7 +63,8 @@ my $barrnap_mode = 'bac';
 my $aragorn_opt = '';
 
 # debian package broke compatibility so have to force it now *grumble*
-my $PARALLELCMD = "parallel --gnu";
+my $PARALLELCMD = "parallel --gnu --plain";
+#my $PARALLELCMD = "parallel --gnu";
 
 # not used anymore
 #my $INFERNALCMD = "cmscan --noali --notextw --acc -E %e --cpu 1 -o %o %d %i 2>/dev/null";
