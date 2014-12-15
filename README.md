@@ -16,7 +16,7 @@ Whole genome annotation is the process of identifying features of interest in a 
 ##Installation
 
 This version will come already installed in Vital-IT machines,
-with all its dependencies. Load the module with::
+with all its dependencies. Load the module with
 
     module add UHTS/Analysis/prokka/1.9.1.ips1
 
@@ -26,7 +26,7 @@ But you can also follow these steps if you want to install this version locally:
 
 Clone this repository or download the zipped version and decompress it.
 Then add the binary `prokka/bin/prokka` to your $PATH, that is,
-add the following line to your `$HOME/.bashrc` file::
+add the following line to your `$HOME/.bashrc` file
 
     export PATH=$PATH:<...>/prokka-1.9.1.ips1
 
